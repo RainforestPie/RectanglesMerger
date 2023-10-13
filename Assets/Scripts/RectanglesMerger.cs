@@ -31,7 +31,36 @@ namespace GF2DarkZoneMapEditor
             pointsSortByY.Sort(new YThenXComparer());
 
             var edges = ResolveEdges(pointsSortByX, pointsSortByY);
+
             return edges;
+        }
+
+        public static void GetPolygonsAfterMerge(BoxCollider2D[] boxColliders)
+        {
+            var rectangles = GetRectangles(boxColliders);
+            var uniquePoints = GetUniquePoints(rectangles);
+
+            var pointsSortByX = uniquePoints.ToList();
+            pointsSortByX.Sort(new XThenYComparer());
+            var pointsSortByY = uniquePoints.ToList();
+            pointsSortByY.Sort(new YThenXComparer());
+
+            var edgesH = new Dictionary<Vector2, Vector2>();
+            var edgesV = new Dictionary<Vector2, Vector2>();
+            ResolveEdges(pointsSortByX, pointsSortByY, edgesH, edgesV);
+            List<List<Vector2>> polygons = GetPolygons(edgesH, edgesV);
+
+            foreach (var polygon in polygons)
+            {
+                for (int j = 0; j < polygon.Count; j++)
+                {
+                    Vector2 startPoint = polygon[j];
+                    //Vector2 endPoint = polygon[(j + 1) % polygon.Count];
+                    //Debug.DrawLine(startPoint, endPoint, Color.red, 2f); // Draw the edges of the polygon
+                    Debug.Log(startPoint);
+                    Debug.DrawLine(new Vector2(startPoint.x - 0.1f, startPoint.y), new Vector2(startPoint.x + 0.1f, startPoint.y), Color.red);
+                }
+            }
         }
 
         /// <summary>
@@ -120,6 +149,89 @@ namespace GF2DarkZoneMapEditor
                 }
             }
             return edges;
+        }
+
+        private static void ResolveEdges(List<Vector2> pointsSortByX, List<Vector2> pointsSortByY, Dictionary<Vector2, Vector2> edgesH, Dictionary<Vector2, Vector2> edgesV)
+        {
+            var pointCount = pointsSortByX.Count;
+            int i = 0;
+            while (i < pointCount)
+            {
+                float currY = pointsSortByY[i].y;
+                while (i < pointCount && pointsSortByY[i].y == currY)
+                {
+                    var startPoint = pointsSortByY[i];
+                    var endPoint = pointsSortByY[i + 1];
+                    edgesH[startPoint] = endPoint;
+                    edgesH[endPoint] = startPoint;
+                    i += 2;
+                }
+            }
+
+            i = 0;
+            while (i < pointCount)
+            {
+                float currX = pointsSortByX[i].x;
+                while (i < pointCount && pointsSortByX[i].x == currX)
+                {
+                    var startPoint = pointsSortByX[i];
+                    var endPoint = pointsSortByX[i + 1];
+                    edgesV[startPoint] = endPoint;
+                    edgesV[endPoint] = startPoint;
+                    i += 2;
+                }
+            }
+        }
+
+        private static List<List<Vector2>> GetPolygons(Dictionary<Vector2, Vector2> edgesH, Dictionary<Vector2, Vector2> edgesV)
+        {
+            List<List<Vector2>> polygons = new List<List<Vector2>>();
+
+            while (edgesH.Count > 0)
+            {
+                // 可以任选一点开始。这里选第一个
+                Vector2 current = edgesH.Keys.First();
+                edgesH.Remove(current);
+                var polygon = new List<Vector2>();
+                bool findVertical = true;
+                polygon.Add(current);
+
+                while (true)
+                {
+                    current = polygon[polygon.Count - 1];
+                    if (findVertical)
+                    {
+                        Vector2 nextVertex = edgesV[current];
+                        edgesV.Remove(current);
+                        polygon.Add(nextVertex);
+                        findVertical = false;
+                    }
+                    else
+                    {
+                        Vector2 nextVertex = edgesH[current];
+                        edgesH.Remove(current);
+                        polygon.Add(nextVertex);
+                        findVertical = true;
+                    }
+
+                    if (polygon[polygon.Count - 1] == polygon[0])
+                    {
+                        // Closed polygon
+                        polygon.RemoveAt(polygon.Count - 1);
+                        break;
+                    }
+                }
+
+                foreach (var vertex in polygon)
+                {
+                    edgesH.Remove(vertex);
+                    edgesV.Remove(vertex);
+                }
+
+                polygons.Add(polygon);
+            }
+
+            return polygons;
         }
 
         /// <summary>
